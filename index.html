@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Saint's Mileage" />
+  <meta name="theme-color" content="#1A1614" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <title>Saint's Touch Mileage</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;700&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{--bg:#1A1614;--surface:#252119;--text:#F5EDE0;--muted:#A89B85;--gold:#B8975A;--green:#7A9B6E;--border:#3A332A}
+    *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Jost,sans-serif}
+    h1,h2,h3{font-family:'Cormorant Garamond',serif;margin:.2rem 0} .app{max-width:430px;margin:0 auto;min-height:100vh;padding:env(safe-area-inset-top) 14px calc(86px + env(safe-area-inset-bottom));}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px}
+    .row{display:flex;gap:8px}.row>*{flex:1}label{display:block;color:var(--muted);font-size:.85rem;margin-bottom:4px}
+    input,select,textarea,button{width:100%;border-radius:8px;border:1px solid var(--border);padding:10px;font:inherit}
+    input,select,textarea{background:#1d1914;color:var(--text)} input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold)}
+    button{background:var(--gold);color:#1A1614;border:none;font-weight:600}button:hover{filter:brightness(1.06)} .sub{color:var(--muted);font-size:.9rem}
+    .tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--border);display:flex;padding:8px 8px calc(8px + env(safe-area-inset-bottom));z-index:3}
+    .tabs button{background:transparent;color:var(--muted);padding:8px;border-radius:10px}.tabs .active{background:#302a20;color:var(--gold)}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-size:.8rem;cursor:pointer}.pill.active{background:var(--gold);color:#1A1614;border-color:var(--gold)}
+    .drive{padding:10px;border:1px solid var(--border);border-radius:10px;margin:8px 0;background:#201b15;cursor:pointer}
+    .badge{font-size:.75rem;padding:2px 8px;border-radius:999px;border:1px solid var(--border)}
+    .badge.Business{background:#2d3b2a;color:#cce2c2}.badge.Personal{background:#2b2a36;color:#d8d3ef}.badge.Unclassified{background:#3a3224;color:#f1ddb2}
+    .hidden{display:none}.footer{text-align:center;color:var(--muted);font-size:.82rem;padding:8px}
+  </style>
+</head>
+<body>
+<div class="app">
+  <section id="drivesTab"></section>
+  <section id="addTab" class="hidden"></section>
+  <section id="summariesTab" class="hidden"></section>
+  <section id="settingsTab" class="hidden"></section>
+</div>
+<nav class="tabs">
+  <button data-tab="drivesTab" class="active">Drives</button><button data-tab="addTab">Add</button><button data-tab="summariesTab">Summaries</button><button data-tab="settingsTab">Settings</button>
+</nav>
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const store={get:(k,d)=>JSON.parse(localStorage.getItem(k)||JSON.stringify(d)),set:(k,v)=>localStorage.setItem(k,JSON.stringify(v))};
+let drives=store.get('drives',[]), vehicles=store.get('vehicles',[]), settings=store.get('settings',{mileageRate:0.67});
+let currentMonth=new Date().toISOString().slice(0,7), filter='All', summaryMode='month';
+const fmtUSD=n=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n||0);
+const fmtMiles=n=>`${(+n||0).toFixed(1)} mi`;
+const fmtDate=s=>new Date(s).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'}).replace(',',' ·');
+function save(){store.set('drives',drives);store.set('vehicles',vehicles);store.set('settings',settings)}
+function monthDrives(){return drives.filter(d=>d.date.slice(0,7)===currentMonth)}
+function renderDrives(){const m=monthDrives().filter(d=>filter==='All'||d.classification===filter).sort((a,b)=>new Date(b.date)-new Date(a.date));
+ const totals=m.reduce((a,d)=>(a.miles+=+d.miles||0,a.value+=(+d.miles||0)*settings.mileageRate+(+d.parking||0)+(+d.tolls||0),a),{miles:0,value:0});
+ $('#drivesTab').innerHTML=`<h1>Saint's Touch Mileage</h1><div class="card"><div class="row"><div><label>Month</label><input type="month" id="monthPick" value="${currentMonth}"></div></div><div class="row"><div><h3>${m.length}</h3><div class=sub>Total drives</div></div><div><h3>${fmtMiles(totals.miles)}</h3><div class=sub>Total miles</div></div><div><h3>${fmtUSD(totals.value)}</h3><div class=sub>Total value</div></div></div></div>
+ <div class="row" style="flex-wrap:wrap;margin-bottom:8px">${['All','Business','Personal','Unclassified'].map(p=>`<div class="pill ${p===filter?'active':''}" data-filter="${p}">${p}</div>`).join('')}</div>
+ ${m.length?m.map((d,i)=>`<div class=drive data-i="${drives.indexOf(d)}"><b>${new Date(d.date).toLocaleDateString()}</b> · ${d.start} → ${d.end}<br><span class=sub>${fmtMiles(d.miles)} · ${fmtUSD((+d.miles||0)*settings.mileageRate+(+d.parking||0)+(+d.tolls||0))}</span> <span class="badge ${d.classification}">${d.classification}</span></div>`).join(''):'<div class=card><h3>No drives yet</h3><div class=sub>Add your first trip from the Add tab.</div></div>'}`;
+ $('#monthPick').onchange=e=>{currentMonth=e.target.value;renderAll()};$$('.pill').forEach(p=>p.onclick=()=>{filter=p.dataset.filter;renderDrives()});
+ $$('.drive').forEach(el=>el.onclick=()=>editDrive(+el.dataset.i));}
+function renderAdd(editIndex=null){const d=editIndex==null?{date:new Date().toISOString().slice(0,16),start:'',end:'',miles:'',classification:'Business',vehicleId:'',notes:'',parking:'',tolls:''}:({...drives[editIndex],date:drives[editIndex].date.slice(0,16)});
+ $('#addTab').innerHTML=`<h1>${editIndex==null?'Add Drive':'Edit Drive'}</h1><div class=card><div class=row><div><label>Date/time</label><input id=date type=datetime-local value="${d.date}"></div></div><label>Start location</label><input id=start value="${d.start}"><label>End location</label><input id=end value="${d.end}"><label>Distance in miles</label><input id=miles type=number step=0.1 value="${d.miles}"><label>Classification</label><select id=cls>${['Business','Personal','Unclassified'].map(c=>`<option ${d.classification===c?'selected':''}>${c}</option>`).join('')}</select><label>Vehicle</label><select id=veh><option value=''>None</option>${vehicles.map(v=>`<option value="${v.id}" ${d.vehicleId===v.id?'selected':''}>${v.nickname||`${v.year} ${v.make} ${v.model}`}</option>`).join('')}</select><label>Notes</label><textarea id=notes>${d.notes||''}</textarea><div class=row><div><label>Parking $</label><input id=parking type=number step=0.01 value="${d.parking||''}"></div><div><label>Tolls $</label><input id=tolls type=number step=0.01 value="${d.tolls||''}"></div></div><div class=card><b>Live value: <span id=live>${fmtUSD((+d.miles||0)*settings.mileageRate+(+d.parking||0)+(+d.tolls||0))}</span></b></div><button id=saveDrive>${editIndex==null?'Save Drive':'Update Drive'}</button>${editIndex==null?'':'<button id=delDrive style="margin-top:8px;background:#5a2b2b;color:#f5ede0">Delete Drive</button>'}</div>`;
+ const recalc=()=>$('#live').textContent=fmtUSD((+$('#miles').value||0)*settings.mileageRate+(+$('#parking').value||0)+(+$('#tolls').value||0));['miles','parking','tolls'].forEach(i=>$('#'+i).oninput=recalc);
+ $('#saveDrive').onclick=()=>{const item={id:crypto.randomUUID(),date:new Date($('#date').value).toISOString(),start:$('#start').value.trim(),end:$('#end').value.trim(),miles:+$('#miles').value||0,classification:$('#cls').value,vehicleId:$('#veh').value,notes:$('#notes').value.trim(),parking:+$('#parking').value||0,tolls:+$('#tolls').value||0}; if(editIndex==null)drives.push(item); else drives[editIndex]={...drives[editIndex],...item,id:drives[editIndex].id}; save(); switchTab('drivesTab'); renderAll();};
+ if($('#delDrive'))$('#delDrive').onclick=()=>{if(confirm('Delete this drive?')){drives.splice(editIndex,1);save();switchTab('drivesTab');renderAll();}};
+}
+function renderSummaries(){const set=monthDrives(); const bus=set.filter(d=>d.classification==='Business').reduce((a,d)=>a+(+d.miles||0),0), per=set.filter(d=>d.classification==='Personal').reduce((a,d)=>a+(+d.miles||0),0);
+ $('#summariesTab').innerHTML=`<h1>Summaries</h1><div class=card><div class=row><button id=mBtn ${summaryMode==='month'?'':'style="background:#3a332a;color:#f5ede0"'}>Month view</button><button id=yBtn ${summaryMode==='year'?'':'style="background:#3a332a;color:#f5ede0"'}>Year view</button></div><canvas id=chart height=180></canvas><button id=csv>Export CSV</button></div>`;
+ $('#mBtn').onclick=()=>{summaryMode='month';renderSummaries()};$('#yBtn').onclick=()=>{summaryMode='year';renderSummaries()};
+ const ctx=$('#chart'); if(window._c)window._c.destroy();
+ if(summaryMode==='month'){window._c=new Chart(ctx,{type:'doughnut',data:{labels:['Business miles','Personal miles'],datasets:[{data:[bus,per],backgroundColor:['#B8975A','#7A9B6E']}]},options:{plugins:{legend:{labels:{color:'#F5EDE0'}}}}});}
+ else {const y=currentMonth.slice(0,4), arr=Array.from({length:12},(_,i)=>drives.filter(d=>d.date.slice(0,4)===y && +d.date.slice(5,7)===i+1).reduce((a,d)=>a+(+d.miles||0)*settings.mileageRate+(+d.parking||0)+(+d.tolls||0),0)); window._c=new Chart(ctx,{type:'bar',data:{labels:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],datasets:[{label:'$ value',data:arr,backgroundColor:'#B8975A'}]},options:{indexAxis:'y',scales:{x:{ticks:{color:'#F5EDE0'}},y:{ticks:{color:'#F5EDE0'}}},plugins:{legend:{labels:{color:'#F5EDE0'}}}}});}
+ $('#csv').onclick=()=>{const rows=[['Date','Start','End','Miles','Classification','Vehicle','Value','Parking','Tolls','Notes']]; const period=summaryMode==='month'?monthDrives():drives.filter(d=>d.date.slice(0,4)===currentMonth.slice(0,4)); period.forEach(d=>rows.push([d.date,d.start,d.end,d.miles,d.classification,(vehicles.find(v=>v.id===d.vehicleId)?.nickname)||'',((+d.miles||0)*settings.mileageRate+(+d.parking||0)+(+d.tolls||0)).toFixed(2),d.parking,d.tolls,d.notes])); const csv=rows.map(r=>r.map(c=>`"${String(c??'').replaceAll('"','""')}"`).join(',')).join('\n'); const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`saints-mileage-${summaryMode}.csv`;a.click();};
+}
+function renderSettings(){ $('#settingsTab').innerHTML=`<h1>Settings</h1><div class=card><label>IRS mileage rate ($/mile)</label><input id=rate type=number step=0.01 value="${settings.mileageRate}"><button id=saveRate>Save Rate</button></div><div class=card><h3>Vehicles</h3>${vehicles.map(v=>`<div class=drive><b>${v.nickname||`${v.year} ${v.make} ${v.model}`}</b> ${v.primary?'⭐':''}<br><span class=sub>ODO: ${v.odometer||''}</span><button data-v='${v.id}' class=editV>Edit</button><button data-v='${v.id}' class=delV style="background:#5a2b2b;color:#f5ede0">Delete</button></div>`).join('')}<button id=addVeh>Add Vehicle</button></div><div class=card><button id=expJson>Export JSON backup</button><input id=impFile type=file accept=application/json><button id=clr style="background:#5a2b2b;color:#f5ede0">Clear all data</button></div><div class=footer>Saint's Touch Photography</div>`;
+ $('#saveRate').onclick=()=>{settings.mileageRate=Math.max(0,+$('#rate').value||0.67);save();renderAll()};
+ $('#addVeh').onclick=()=>vehicleForm(); $$('.editV').forEach(b=>b.onclick=()=>vehicleForm(b.dataset.v)); $$('.delV').forEach(b=>b.onclick=()=>{if(confirm('Delete vehicle?')){vehicles=vehicles.filter(v=>v.id!==b.dataset.v);save();renderSettings();}});
+ $('#expJson').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({drives,vehicles,settings},null,2)],{type:'application/json'}));a.download='saints-mileage-backup.json';a.click();};
+ $('#impFile').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{const j=JSON.parse(t);drives=j.drives||[];vehicles=j.vehicles||[];settings=j.settings||settings;save();renderAll();alert('Imported');});};
+ $('#clr').onclick=()=>{if(confirm('Clear all data?')){drives=[];vehicles=[];settings={mileageRate:0.67};save();renderAll();}};
+}
+function vehicleForm(id){const v=vehicles.find(x=>x.id===id)||{make:'',model:'',year:'',nickname:'',primary:false,odometer:''}; const make=prompt('Make',v.make); if(make===null)return; const model=prompt('Model',v.model); if(model===null)return; const year=prompt('Year',v.year)||''; const nickname=prompt('Nickname',v.nickname)||''; const odometer=prompt('Starting odometer',v.odometer)||''; const primary=confirm('Set as primary vehicle?'); const nv={...v,id:v.id||crypto.randomUUID(),make,model,year,nickname,odometer,primary}; if(primary)vehicles=vehicles.map(x=>({...x,primary:false})); if(id)vehicles=vehicles.map(x=>x.id===id?nv:x); else vehicles.push(nv); save();renderSettings();}
+function switchTab(id){$$('.app section').forEach(s=>s.classList.toggle('hidden',s.id!==id));$$('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));if(id==='addTab')renderAdd();if(id==='summariesTab')renderSummaries();if(id==='settingsTab')renderSettings();}
+function editDrive(i){switchTab('addTab');renderAdd(i)}
+$$('.tabs button').forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+function renderAll(){renderDrives();if(!$('#addTab').classList.contains('hidden'))renderAdd();if(!$('#summariesTab').classList.contains('hidden'))renderSummaries();if(!$('#settingsTab').classList.contains('hidden'))renderSettings();}
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js'));
+renderAll();
+</script>
+</body></html>
